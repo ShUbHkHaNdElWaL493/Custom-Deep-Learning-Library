@@ -1,7 +1,7 @@
 #   Shubh Khandelwal
 
 import numpy as np
-from skn.tensor import Tensor
+from sknpy.tensor import Tensor
 from typing import Iterator, NamedTuple
 
 Batch = NamedTuple("Batch", [("input", Tensor), ("target", Tensor)])

@@ -1,10 +1,10 @@
 #   Shubh Khandelwal
 
-from skn.data import DataIterator, BatchIterator
-from skn.loss import Loss, MSE
-from skn.nn import NeuralNetwork
-from skn.optim import Optimizer, SGD
-from skn.tensor import Tensor
+from sknpy.data import DataIterator, BatchIterator
+from sknpy.loss import Loss, MSE
+from sknpy.nn import NeuralNetwork
+from sknpy.optim import Optimizer, SGD
+from sknpy.tensor import Tensor
 
 def train(
         nn: NeuralNetwork,

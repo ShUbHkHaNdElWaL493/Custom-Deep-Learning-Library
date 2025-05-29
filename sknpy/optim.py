@@ -1,6 +1,6 @@
 #   Shubh Khandelwal
 
-from skn.nn import NeuralNetwork
+from sknpy.nn import NeuralNetwork
 
 class Optimizer:
 

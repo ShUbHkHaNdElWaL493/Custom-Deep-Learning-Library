@@ -1,7 +1,7 @@
 #   Shubh Khandelwal
 
-from skn.layers import Layer
-from skn.tensor import Tensor
+from sknpy.layers import Layer
+from sknpy.tensor import Tensor
 from typing import Iterator, Sequence, Tuple
 
 class NeuralNetwork:

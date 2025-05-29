@@ -1,7 +1,7 @@
 #   Shubh Khandelwal
 
 import numpy as np
-from skn.tensor import Tensor
+from sknpy.tensor import Tensor
 
 class Loss:
 
