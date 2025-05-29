@@ -28,29 +28,31 @@ class Tensor
     private:
 
     Device device;
-    std::vector<int> shape;
+    int shape[3];
     float* data;
     size_t size;
 
     public:
 
-    Tensor(const std::vector<int>& shape, Device device = Device::CPU);
+    Tensor();
+    Tensor(int channels, int rows, int columns, Device device = Device::CPU);
     ~Tensor();
 
-    const std::vector<int>& get_shape() const;
-    float *get_data();
+    const Device get_device() const;
+    const int* get_shape() const;
     void to(Device device);
     Tensor copy() const;
-    void reshape(const std::vector<int>& new_shape);
+    void reshape(int channels, int rows, int columns);
 
-    size_t index(const std::vector<int>& indices) const;
-    float get(const std::vector<int>& indices) const;
-    void set(const std::vector<int>& indices, float value);
+    size_t index(int channels, int row, int column) const;
+    float get(int channels, int row, int column) const;
+    void set(int channels, int row, int column, float value);
 
     void zeros();
     void scalar_add(float scalar);
     void add(const Tensor& temp1, const Tensor& temp2);
     void multiply(const Tensor& temp1, const Tensor& temp2);
+    void matrix_multiply(const Tensor& temp1, const Tensor& temp2);
 
 };
 

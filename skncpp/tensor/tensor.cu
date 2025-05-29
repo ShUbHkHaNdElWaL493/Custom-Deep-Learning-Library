@@ -6,38 +6,70 @@
 #include <iostream>
 #include "tensor.hpp"
 
-__global__ void kernel_add(const float* a, const float* b, float* out, int size)
+__global__ void kernel_scalar_add(float* A, float scalar, int size)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < size)
     {
-        out[i] = a[i] + b[i];
+        A[i] += scalar;
     }
 }
 
-__global__ void kernel_multiply(const float* a, const float* b, float* out, int size)
+__global__ void kernel_add(const float* A, const float* B, float* out, int size)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < size)
     {
-        out[i] = a[i] * b[i];
+        out[i] = A[i] + B[i];
     }
 }
 
-__global__ void kernel_scalar_add(float* a, float scalar, int size)
+__global__ void kernel_multiply(const float* A, const float* B, float* out, int size)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < size)
     {
-        a[i] += scalar;
+        out[i] = A[i] * B[i];
     }
 }
 
-Tensor::Tensor(const std::vector<int>& shape, Device device) : shape(shape), device(device)
+__global__ void kernel_matrix_multiply(const float* A, const float* B, float* out, int C, int I, int K, int J)
 {
+
+    int c = blockIdx.z;
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < I && j < J)
+    {
+        float sum = 0;
+        for (int k = 0; k < K; ++k)
+        {
+            int idxA = (c * I + i) * K + k;
+            int idxB = (c * K + k) * J + j;
+            sum += A[idxA] * B[idxB];
+        }
+        int idxOut = (c * I * J) + (i * J) + j;
+        out[idxOut] = sum;
+    }
+
+}
+
+Tensor::Tensor()
+{}
+
+Tensor::Tensor(int channels, int rows, int columns, Device device) : device(device)
+{
+
+    shape[0] = channels;
+    shape[1] = rows;
+    shape[2] = columns;
 
     size = 1;
-    for (int dim : shape) size *= dim;
+    for (int dim : shape)
+    {
+        size *= dim;
+    }
 
     if (device == Device::CPU)
     {
@@ -68,14 +100,14 @@ Tensor::~Tensor()
     }
 }
 
-const std::vector<int>& Tensor::get_shape() const
+const Device Tensor::get_device() const
 {
-    return shape;
+    return device;
 }
 
-float* Tensor::get_data()
+const int* Tensor::get_shape() const
 {
-    return data;
+    return shape;
 }
 
 void Tensor::to(Device device)
@@ -111,7 +143,7 @@ void Tensor::to(Device device)
 
 Tensor Tensor::copy() const
 {
-    Tensor clone(shape, device);
+    Tensor clone(shape[0], shape[1], shape[2], device);
     if (device == Device::CPU)
     {
         std::copy(data, data + size, clone.data);
@@ -126,60 +158,50 @@ Tensor Tensor::copy() const
     return clone;
 }
 
-void Tensor::reshape(const std::vector<int>& new_shape)
+void Tensor::reshape(int channels, int rows, int columns)
 {
-    size_t new_size = 1;
-    for (int dim : new_shape)
-    {
-        new_size *= dim;
-    }
+    size_t new_size = channels * rows * columns;
     if (new_size != size)
     {
-        std::cerr << "SIZE_MISMATCH_ERROR" << std::endl;
-        exit(2);
+        std::cerr << "DIMENSION_MISMATCH_ERROR" << std::endl;
+        exit(4);
     }
-    shape = new_shape;
+    shape[0] = channels;
+    shape[1] = rows;
+    shape[2] = columns;
 }
 
-size_t Tensor::index(const std::vector<int>& indices) const
+size_t Tensor::index(int channel, int row, int column) const
 {
 
-    if (indices.size() != shape.size())
+    if (channel >= shape[0] || row >= shape[1] || column >= shape[2])
     {
         std::cerr << "DIMENSION_MISMATCH_ERROR" << std::endl;
-        exit(3);
+        exit(4);
     }
 
-    size_t idx = 0;
-    size_t multiplier = 1;
-    for (int i = shape.size() - 1; i >= 0; i--)
-    {
-        idx += indices[i] * multiplier;
-        multiplier *= shape[i];
-    }
-
-    return idx;
+    return ((channel * shape[1] + row) * shape[2] + column);
 
 }
 
-float Tensor::get(const std::vector<int>& indices) const
+float Tensor::get(int channel, int row, int column) const
 {
     if (device != Device::CPU)
     {
         std::cerr << "ILLEGAL_DEVICE_ERROR" << std::endl;
-        exit(4);
+        exit(2);
     }
-    return data[index(indices)];
+    return data[index(channel, row, column)];
 }
 
-void Tensor::set(const std::vector<int>& indices, float value)
+void Tensor::set(int channel, int row, int column, float value)
 {
     if (device != Device::CPU)
     {
         std::cerr << "ILLEGAL_DEVICE_ERROR" << std::endl;
-        exit(4);
+        exit(2);
     }
-    data[index(indices)] = value;
+    data[index(channel, row, column)] = value;
 }
 
 void Tensor::zeros()
@@ -207,7 +229,7 @@ void Tensor::scalar_add(float scalar)
         }
     } else if (device == Device::GPU)
     {
-        int threads = 32;
+        int threads = 256;
         int blocks = (size + threads - 1) / threads;
         kernel_scalar_add<<<blocks, threads>>>(data, scalar, size);
         CUDA_CHECK(cudaDeviceSynchronize());
@@ -221,10 +243,18 @@ void Tensor::scalar_add(float scalar)
 void Tensor::add(const Tensor& temp1, const Tensor& temp2)
 {
 
-    if (shape != temp1.shape || shape != temp2.shape || device != temp1.device || device != temp2.device)
+    if ((device != temp1.device) || (device != temp2.device))
     {
-        std::cerr << "SHAPE_OR_DEVICE_MISMATCH_ERROR" << std::endl;
-        exit(5);
+        std::cerr << "DEVICE_MISMATCH_ERROR" << std::endl;
+        exit(3);
+    }
+
+    if ((shape[0] != temp1.shape[0]) || (shape[0] != temp2.shape[0]) \
+    || (shape[1] != temp1.shape[1]) || (shape[1] != temp2.shape[1]) \
+    || (shape[2] != temp1.shape[2]) || (shape[2] != temp2.shape[2]))
+    {
+        std::cerr << "DIMENSION_MISMATCH_ERROR" << std::endl;
+        exit(4);
     }
 
     if (device == Device::CPU)
@@ -235,7 +265,7 @@ void Tensor::add(const Tensor& temp1, const Tensor& temp2)
         }
     } else if (device == Device::GPU)
     {
-        int threads = 32;
+        int threads = 256;
         int blocks = (size + threads - 1) / threads;
         kernel_add<<<blocks, threads>>>(temp1.data, temp2.data, data, size);
         CUDA_CHECK(cudaDeviceSynchronize());
@@ -250,10 +280,18 @@ void Tensor::add(const Tensor& temp1, const Tensor& temp2)
 void Tensor::multiply(const Tensor& temp1, const Tensor& temp2)
 {
 
-    if (shape != temp1.shape || shape != temp2.shape || device != temp1.device || device != temp2.device)
+    if ((device != temp1.device) || (device != temp2.device))
     {
-        std::cerr << "SHAPE_OR_DEVICE_MISMATCH_ERROR" << std::endl;
-        exit(5);
+        std::cerr << "DEVICE_MISMATCH_ERROR" << std::endl;
+        exit(3);
+    }
+
+    if ((shape[0] != temp1.shape[0]) || (shape[0] != temp2.shape[0]) \
+    || (shape[1] != temp1.shape[1]) || (shape[1] != temp2.shape[1]) \
+    || (shape[2] != temp1.shape[2]) || (shape[2] != temp2.shape[2]))
+    {
+        std::cerr << "DIMENSION_MISMATCH_ERROR" << std::endl;
+        exit(4);
     }
 
     if (device == Device::CPU)
@@ -264,9 +302,64 @@ void Tensor::multiply(const Tensor& temp1, const Tensor& temp2)
         }
     } else if (device == Device::GPU)
     {
-        int threads = 32;
+        int threads = 256;
         int blocks = (size + threads - 1) / threads;
         kernel_multiply<<<blocks, threads>>>(temp1.data, temp2.data, data, size);
+        CUDA_CHECK(cudaDeviceSynchronize());
+    } else
+    {
+        std::cerr << "UNKNOWN_DEVICE_ERROR" << std::endl;
+        exit(1);
+    }
+
+}
+
+void Tensor::matrix_multiply(const Tensor& temp1, const Tensor& temp2)
+{
+
+    if ((device != temp1.device) || (device != temp2.device))
+    {
+        std::cerr << "DEVICE_MISMATCH_ERROR" << std::endl;
+        exit(3);
+    }
+
+    if ((shape[0] != temp1.shape[0]) \
+    || (shape[0] != temp2.shape[0]) \
+    || (shape[1] != temp1.shape[1]) \
+    || (shape[2] != temp2.shape[2]) \
+    || (temp1.shape[2] != temp2.shape[1]))
+    {
+        std::cerr << "DIMENSION_MISMATCH_ERROR" << std::endl;
+        exit(4);
+    }
+
+    int C = shape[0];
+    int I = shape[1];
+    int J = shape[2];
+    int K = temp1.shape[2];
+
+    if (device == Device::CPU)
+    {
+        for (int c = 0; c < shape[0]; c++)
+        {
+            for (int i = 0; i < shape[1]; i++)
+            {
+                for (int j = 0; j < shape[2]; j++)
+                {
+                    float sum = 0;
+                    for (int k = 0; k < temp1.shape[2]; k++)
+                    {
+                        sum += temp1.get(c, i, k) * temp2.get(c, k, j);
+                    }
+                    set(c, i, j, sum);
+                }
+            }
+        }
+    } else if (device == Device::GPU)
+    {
+        dim3 blockDim(16, 16);
+        dim3 gridDim((J + blockDim.x - 1) / blockDim.x, (I + blockDim.y - 1) / blockDim.y, C);
+        kernel_matrix_multiply<<<gridDim, blockDim>>>(temp1.data, temp2.data, data, C, I, K, J);
         CUDA_CHECK(cudaDeviceSynchronize());
     } else
     {
