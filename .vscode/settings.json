@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.sdf": "xml",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -79,7 +80,8 @@
         "shared_mutex": "cpp",
         "valarray": "cpp",
         "stdfloat": "cpp",
-        "__nullptr": "cpp"
+        "__nullptr": "cpp",
+        "cassert": "cpp"
     },
     "ros.distro": "jazzy"
 }

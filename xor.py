@@ -1,9 +1,9 @@
 #   Shubh Khandelwal
 
 import numpy as np
-from skn.layers import Linear, Tanh
-from skn.nn import NeuralNetwork
-from skn.train import train
+from sknpy.layers import Linear, Tanh
+from sknpy.nn import NeuralNetwork
+from sknpy.train import train
 
 input = np.array([
     [0, 0],
