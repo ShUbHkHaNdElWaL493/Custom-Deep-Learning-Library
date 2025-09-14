@@ -39,6 +39,15 @@ namespace skn
 
     };
 
+    class Tanh : public ActivationLayer
+    {
+
+        public:
+
+        Tanh(Device device);
+
+    };
+
 }
 
 #endif

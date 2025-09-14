@@ -39,6 +39,40 @@ __global__ void sigmoid1_GPU(float* input, float* output, int size)
     }
 }
 
+void tanh_CPU(float *input, float *output, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        output[i] = (exp(input[i]) - exp(-input[i])) / (exp(input[i]) + exp(-input[i]));
+    }
+}
+
+__global__ void tanh_GPU(float* input, float* output, int size)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < size)
+    {
+        output[i] = (expf(input[i]) - expf(-input[i])) / (expf(input[i]) + expf(-input[i]));
+    }
+}
+
+void tanh1_CPU(float *input, float *output, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        output[i] = 4 / ((exp(input[i]) + exp(-input[i])) * (exp(input[i]) + exp(-input[i])));
+    }
+}
+
+__global__ void tanh1_GPU(float* input, float* output, int size)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < size)
+    {
+        output[i] = 4 / ((expf(input[i]) + expf(-input[i])) * (expf(input[i]) + expf(-input[i])));
+    }
+}
+
 namespace skn
 {
 
@@ -85,6 +119,14 @@ namespace skn
         this->activation_GPU = sigmoid_GPU;
         this->activation1_CPU = sigmoid1_CPU;
         this->activation1_GPU = sigmoid1_GPU;
+    }
+
+    Tanh::Tanh(Device device) : ActivationLayer(device)
+    {
+        this->activation_CPU = tanh_CPU;
+        this->activation_GPU = tanh_GPU;
+        this->activation1_CPU = tanh1_CPU;
+        this->activation1_GPU = tanh1_GPU;
     }
 
 }
